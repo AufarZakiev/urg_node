@@ -1,10 +1,10 @@
 <?xml version="1.0"?>
 <package format="2">
-  <name>urg_node</name>
+  <name>udp_urg_node</name>
   <version>0.1.11</version>
-  <description>urg_node</description>
+  <description>udp_urg_node</description>
 
-  <maintainer email="tony.baltovski@gmail.com">Tony Baltovski</maintainer>
+  <maintainer email="zaufar@gmail.com">Aufar Zakiev</maintainer>
 
   <license>BSD</license>
 
