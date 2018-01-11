@@ -458,9 +458,23 @@ namespace urg_node {
                             laser_pub_.publish(msg);
 
                             // UDP message sending
-                            std::string message = "Whoa! String from server!\n";
+                            std::string message = "Whoa! Serialized string from server!\n";
+
+//                            uint32_t serial_size = ros::serialization::serializationLength(msg);
+//                            boost::shared_array<uint8_t> buffer(new uint8_t[serial_size]);
+//
+//                            ros::serialization::OStream stream(buffer.get(), serial_size);
+//                            ros::serialization::serialize(stream, msg);
+                            std::stringstream ss(std::stringstream::binary | std::stringstream::in);
+                            ss << msg.get()->angle_min;
+                            std::cout << ss.str() << "\n";
+//                            std::vector<boost::asio::const_buffer> bufs;
+//                            bufs.push_back(boost::asio::buffer(msg.get()->header.frame_id));
+//                            bufs.push_back(boost::asio::buffer(msg.get()->header.stamp));
+//                            bufs.push_back(boost::asio::buffer(msg.get()->ranges));
+
                             boost::system::error_code ignored_error;
-                            socket_.send_to(boost::asio::buffer(message),
+                            socket_.send_to(boost::asio::buffer(ss.str()),
                                             remote_endpoint_, 0, ignored_error);
 
                             laser_freq_->tick();
