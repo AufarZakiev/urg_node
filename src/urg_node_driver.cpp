@@ -46,14 +46,14 @@ namespace urg_node {
     UrgNode::UrgNode(ros::NodeHandle nh, ros::NodeHandle private_nh, boost::asio::io_service &io_service) :
             nh_(nh),
             pnh_(private_nh),
-            socket_(io_service, boost::asio::ip::udp::endpoint(boost::asio::ip::udp::v4(), 4590)) {
+            socket_(io_service, boost::asio::ip::udp::endpoint(boost::asio::ip::address::from_string("10.42.0.1"), 4590)) {
         initSetup();
     }
 
     UrgNode::UrgNode(boost::asio::io_service &io_service) :
             nh_(),
             pnh_("~"),
-            socket_(io_service, boost::asio::ip::udp::endpoint(boost::asio::ip::udp::v4(), 4590)) {
+            socket_(io_service, boost::asio::ip::udp::endpoint(boost::asio::ip::address::from_string("10.42.0.1"), 4590)) {
         initSetup();
     }
 
@@ -378,6 +378,7 @@ namespace urg_node {
     }
 
     void UrgNode::scanThread() {
+        std::vector<float> fa;
         while (!close_scan_) {
             if (!urg_) {
                 if (!connect()) {
@@ -458,23 +459,21 @@ namespace urg_node {
                             laser_pub_.publish(msg);
 
                             // UDP message sending
-                            std::string message = "Whoa! Serialized string from server!\n";
-
-//                            uint32_t serial_size = ros::serialization::serializationLength(msg);
-//                            boost::shared_array<uint8_t> buffer(new uint8_t[serial_size]);
-//
-//                            ros::serialization::OStream stream(buffer.get(), serial_size);
-//                            ros::serialization::serialize(stream, msg);
-                            std::stringstream ss(std::stringstream::binary | std::stringstream::in);
-                            ss << msg.get()->angle_min;
-                            std::cout << ss.str() << "\n";
-//                            std::vector<boost::asio::const_buffer> bufs;
-//                            bufs.push_back(boost::asio::buffer(msg.get()->header.frame_id));
-//                            bufs.push_back(boost::asio::buffer(msg.get()->header.stamp));
-//                            bufs.push_back(boost::asio::buffer(msg.get()->ranges));
-
+                            //std::string message = "Whoa! Serialized string from server!\n";
+                            fa.clear();
+                            auto msg_object = msg.get();
+                            fa.push_back(msg_object->angle_min);
+                            fa.push_back(msg_object->angle_max);
+                            fa.push_back(msg_object->angle_increment);
+                            fa.push_back(msg_object->time_increment);
+                            fa.push_back(msg_object->scan_time);
+                            fa.push_back(msg_object->range_min);
+                            fa.push_back(msg_object->range_max);
+                            for (float r:msg_object->ranges) {
+                                fa.push_back(r);
+                            }
                             boost::system::error_code ignored_error;
-                            socket_.send_to(boost::asio::buffer(ss.str()),
+                            socket_.send_to(boost::asio::buffer(fa),
                                             remote_endpoint_, 0, ignored_error);
 
                             laser_freq_->tick();
