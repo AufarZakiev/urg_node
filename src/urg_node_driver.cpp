@@ -463,7 +463,7 @@ namespace urg_node {
 
                             // UDP message sending
                             //std::string message = "Whoa! Serialized string from server!\n";
-                            std::thread UDPthread(&UrgNode::packAndSend, this, *msg);
+                            std::thread UDPthread(&UrgNode::packAndSend, this, msg);
                             UDPthread.detach();
                             laser_freq_->tick();
                         } else {
@@ -495,16 +495,16 @@ namespace urg_node {
         }
     }
 
-    void UrgNode::packAndSend(const sensor_msgs::LaserScan msg) {
+    void UrgNode::packAndSend(const sensor_msgs::LaserScanPtr &&msg) {
         std::vector<float> fa;
-        fa.emplace_back(msg.angle_min);
-        fa.emplace_back(msg.time_increment);
-        fa.emplace_back(msg.angle_increment);
-        fa.emplace_back(msg.angle_max);
-        fa.emplace_back(msg.scan_time);
-        fa.emplace_back(msg.range_min);
-        fa.emplace_back(msg.range_max);
-        for (float r:msg.ranges) {
+        fa.emplace_back(msg->angle_min);
+        fa.emplace_back(msg->time_increment);
+        fa.emplace_back(msg->angle_increment);
+        fa.emplace_back(msg->angle_max);
+        fa.emplace_back(msg->scan_time);
+        fa.emplace_back(msg->range_min);
+        fa.emplace_back(msg->range_max);
+        for (float r:msg->ranges) {
             fa.emplace_back(r);
         }
         boost::system::error_code ignored_error;

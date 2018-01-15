@@ -91,7 +91,7 @@ namespace urg_node {
 
         bool statusCallback(std_srvs::Trigger::Request &req, std_srvs::Trigger::Response &res);
 
-        void packAndSend(const sensor_msgs::LaserScan msg);
+        void packAndSend(const sensor_msgs::LaserScanPtr &&msg);
 
         ros::NodeHandle nh_;
         ros::NodeHandle pnh_;
