@@ -48,14 +48,16 @@ namespace urg_node {
     UrgNode::UrgNode(ros::NodeHandle nh, ros::NodeHandle private_nh, boost::asio::io_service &io_service) :
             nh_(nh),
             pnh_(private_nh),
-            socket_(io_service, boost::asio::ip::udp::endpoint(boost::asio::ip::address::from_string("10.42.0.1"), 4590)) {
+            socket_(io_service,
+                    boost::asio::ip::udp::endpoint(boost::asio::ip::address::from_string("10.42.0.1"), 4590)) {
         initSetup();
     }
 
     UrgNode::UrgNode(boost::asio::io_service &io_service) :
             nh_(),
             pnh_("~"),
-            socket_(io_service, boost::asio::ip::udp::endpoint(boost::asio::ip::address::from_string("10.42.0.1"), 4590)) {
+            socket_(io_service,
+                    boost::asio::ip::udp::endpoint(boost::asio::ip::address::from_string("10.42.0.1"), 4590)) {
         initSetup();
     }
 
@@ -380,7 +382,6 @@ namespace urg_node {
     }
 
     void UrgNode::scanThread() {
-        std::vector<float> fa;
         while (!close_scan_) {
             if (!urg_) {
                 if (!connect()) {
@@ -462,21 +463,8 @@ namespace urg_node {
 
                             // UDP message sending
                             //std::string message = "Whoa! Serialized string from server!\n";
-                            fa.clear();
-                            fa.emplace_back(msg->angle_min);
-                            fa.emplace_back(msg->time_increment);
-                            fa.emplace_back(msg->angle_increment);
-                            fa.emplace_back(msg->angle_max);
-                            fa.emplace_back(msg->scan_time);
-                            fa.emplace_back(msg->range_min);
-                            fa.emplace_back(msg->range_max);
-                            for (float r:msg->ranges) {
-                                fa.emplace_back(r);
-                            }
-                            boost::system::error_code ignored_error;
-                            socket_.send_to(boost::asio::buffer(fa),
-                                            remote_endpoint_, 0, ignored_error);
-
+                            std::thread UDPthread(&UrgNode::packAndSend, this, *msg);
+                            UDPthread.detach();
                             laser_freq_->tick();
                         } else {
                             ROS_WARN_THROTTLE(10.0, "Could not grab single echo scan.");
@@ -505,6 +493,23 @@ namespace urg_node {
                 }
             }
         }
+    }
+
+    void UrgNode::packAndSend(const sensor_msgs::LaserScan msg) {
+        std::vector<float> fa;
+        fa.emplace_back(msg.angle_min);
+        fa.emplace_back(msg.time_increment);
+        fa.emplace_back(msg.angle_increment);
+        fa.emplace_back(msg.angle_max);
+        fa.emplace_back(msg.scan_time);
+        fa.emplace_back(msg.range_min);
+        fa.emplace_back(msg.range_max);
+        for (float r:msg.ranges) {
+            fa.emplace_back(r);
+        }
+        boost::system::error_code ignored_error;
+        socket_.send_to(boost::asio::buffer(fa),
+                        remote_endpoint_, 0, ignored_error);
     }
 
     void UrgNode::run() {
