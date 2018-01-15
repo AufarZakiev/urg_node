@@ -37,6 +37,8 @@
 #include <string>
 #include <diagnostic_msgs/DiagnosticStatus.h>
 #include <urg_node/Status.h>
+// Thread library to make possible parallel UDP packets creation
+#include <thread>
 
 namespace urg_node {
 
@@ -456,21 +458,20 @@ namespace urg_node {
                     } else {
                         const sensor_msgs::LaserScanPtr msg(new sensor_msgs::LaserScan());
                         if (urg_->grabScan(msg)) {
-                            laser_pub_.publish(msg);
+                            //laser_pub_.publish(msg);
 
                             // UDP message sending
                             //std::string message = "Whoa! Serialized string from server!\n";
                             fa.clear();
-                            auto msg_object = msg.get();
-                            fa.push_back(msg_object->angle_min);
-                            fa.push_back(msg_object->angle_max);
-                            fa.push_back(msg_object->angle_increment);
-                            fa.push_back(msg_object->time_increment);
-                            fa.push_back(msg_object->scan_time);
-                            fa.push_back(msg_object->range_min);
-                            fa.push_back(msg_object->range_max);
-                            for (float r:msg_object->ranges) {
-                                fa.push_back(r);
+                            fa.emplace_back(msg->angle_min);
+                            fa.emplace_back(msg->time_increment);
+                            fa.emplace_back(msg->angle_increment);
+                            fa.emplace_back(msg->angle_max);
+                            fa.emplace_back(msg->scan_time);
+                            fa.emplace_back(msg->range_min);
+                            fa.emplace_back(msg->range_max);
+                            for (float r:msg->ranges) {
+                                fa.emplace_back(r);
                             }
                             boost::system::error_code ignored_error;
                             socket_.send_to(boost::asio::buffer(fa),
