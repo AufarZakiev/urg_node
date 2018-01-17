@@ -40,10 +40,14 @@
 // Thread library to make possible parallel UDP packets creation
 #include <thread>
 
-namespace urg_node {
+#include <chrono>
 
+namespace urg_node {
 // Useful typedefs
     typedef diagnostic_updater::FrequencyStatusParam FrequencyStatusParam;
+    typedef std::chrono::high_resolution_clock Clock;
+
+    std::atomic<int> UrgNode::clientAlive;
 
     UrgNode::UrgNode(ros::NodeHandle nh, ros::NodeHandle private_nh, boost::asio::io_service &io_service) :
             nh_(nh),
@@ -63,15 +67,8 @@ namespace urg_node {
 
     void UrgNode::initSetup() {
         // UDP Server init
-        ROS_INFO("Server is waiting for client!\n");
-        boost::array<char, 1> recv_buf{};
-        boost::system::error_code error;
-        socket_.receive_from(boost::asio::buffer(recv_buf),
-                             remote_endpoint_, 0, error);
-
-        if (error && error != boost::asio::error::message_size)
-            throw boost::system::system_error(error);
-        ROS_INFO("Client is connected!\n");
+        std::thread isClientAliveThread(&UrgNode::isClientAlive, this);
+        isClientAliveThread.detach();
 
         close_diagnostics_ = true;
         close_scan_ = true;
@@ -117,6 +114,32 @@ namespace urg_node {
         if (scan_thread_.joinable()) {
             close_scan_ = true;
             scan_thread_.join();
+        }
+        clientAlive = 0;
+    }
+
+    void UrgNode::isClientAlive() {
+        while (clientAlive == 0 || clientAlive == 1) { //actually endless loop to always check for client
+            if (clientAlive == 0) {
+                ROS_INFO("Server is waiting for client!\n");
+                boost::array<char, 1> recv_buf{};
+                boost::system::error_code error;
+                socket_.receive_from(boost::asio::buffer(recv_buf),
+                                     remote_endpoint_, 0, error);
+                if (error && error != boost::asio::error::message_size)
+                    throw boost::system::system_error(error);
+                clientAlive = 1;
+                ROS_INFO("Client connected!\n");
+            } else {
+                boost::array<char, 1> recv_buf{};
+                boost::system::error_code error;
+                socket_.receive_from(boost::asio::buffer(recv_buf),
+                                     remote_endpoint_, 0, error);
+                if (error && error != boost::asio::error::message_size)
+                    throw boost::system::system_error(error);
+                clientAlive = 0;
+                ROS_INFO("Client disconnected!\n");
+            }
         }
     }
 
@@ -383,6 +406,7 @@ namespace urg_node {
 
     void UrgNode::scanThread() {
         while (!close_scan_) {
+
             if (!urg_) {
                 if (!connect()) {
                     boost::this_thread::sleep(boost::posix_time::milliseconds(500));
@@ -461,10 +485,12 @@ namespace urg_node {
                         if (urg_->grabScan(msg)) {
                             //laser_pub_.publish(msg);
 
-                            // UDP message sending
-                            //std::string message = "Whoa! Serialized string from server!\n";
-                            std::thread UDPthread(&UrgNode::packAndSend, this, msg);
-                            UDPthread.detach();
+                            // UDP message sending if client is alive
+                            if (clientAlive == 1) {
+                                std::thread UDPthread(&UrgNode::packAndSend, this, msg);
+                                UDPthread.detach();
+                                //clientAlive = 0;
+                            }
                             laser_freq_->tick();
                         } else {
                             ROS_WARN_THROTTLE(10.0, "Could not grab single echo scan.");
@@ -495,7 +521,13 @@ namespace urg_node {
         }
     }
 
+    static float counterF = 0.0f;
+
     void UrgNode::packAndSend(const sensor_msgs::LaserScanPtr &&msg) {
+        int i1, i2;
+        float temp;
+        counterF++;
+        auto start = Clock::now();
         std::vector<float> fa;
         fa.emplace_back(msg->angle_min);
         fa.emplace_back(msg->time_increment);
@@ -504,12 +536,31 @@ namespace urg_node {
         fa.emplace_back(msg->scan_time);
         fa.emplace_back(msg->range_min);
         fa.emplace_back(msg->range_max);
-        for (float r:msg->ranges) {
-            fa.emplace_back(r);
+        fa.emplace_back(counterF);
+        //for(int i=0; i<600; ++i) fa.emplace_back(msg->ranges[i]);
+        //for (float r:msg->ranges)  {fa.emplace_back(r); std::cout << r << " " << std::endl;}
+        for(int i=0; i<721; i+=2)
+        {
+            i1 = round(msg->ranges[i]*100);
+            i2 = round(msg->ranges[i+1]*100);
+            temp = i1;
+            //std::cout.precision(10);
+            //std::cout << msg->ranges[i] << " " << i1 << " ";
+            if (i!=720){
+                if (i2>1000) {temp+=0.3; temp += i2/100000.0f;}
+                else         {temp+=0.2; temp += i2/10000.0f;}
+                //std::cout.precision(10);
+                //std::cout << msg->ranges[i+1] << " " << i2 << " " << i2/10000.0f << " ";
+            }
+            fa.emplace_back(temp);
+            //std::cout.precision(11);
+            //std::cout << temp << std::endl;
         }
         boost::system::error_code ignored_error;
         socket_.send_to(boost::asio::buffer(fa),
                         remote_endpoint_, 0, ignored_error);
+        //double duration = std::chrono::duration_cast<std::chrono::microseconds>(Clock::now() - start).count();
+        //ROS_INFO("%f", counterF);
     }
 
     void UrgNode::run() {

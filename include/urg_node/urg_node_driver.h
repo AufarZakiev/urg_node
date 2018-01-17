@@ -93,6 +93,8 @@ namespace urg_node {
 
         void packAndSend(const sensor_msgs::LaserScanPtr &&msg);
 
+        void isClientAlive();
+
         ros::NodeHandle nh_;
         ros::NodeHandle pnh_;
 
@@ -148,6 +150,7 @@ namespace urg_node {
         // UDP server objects
         boost::asio::ip::udp::socket socket_;
         boost::asio::ip::udp::endpoint remote_endpoint_;
+        static std::atomic<int> clientAlive;
     };
 
 }  // namespace urg_node
